@@ -202,9 +202,9 @@ public:
         // without this, nothing will appear on screen at first
         //matCameraRot = Matrix_MakeRotationY(fYaw);
         // rotation y
-        matRotY = Matrix_MakeRotationY(fYaw);
+        matRotY = Matrix_MakeRotationY(fThetaY);
         // rotation x
-        matRotX = Matrix_MakeRotationX(fXaw);
+        matRotX = Matrix_MakeRotationX(fThetaX);
         m_tp1 = std::chrono::system_clock::now();
         m_tp2 = std::chrono::system_clock::now();
     }
@@ -215,6 +215,10 @@ public:
         m_tp1 = m_tp2;
         // std::cout<<elapsedTime.count()<<std::endl;
         float elapsedTime = fElapsedTime.count();
+        // rotation y
+        matRotY = Matrix_MakeRotationY(fThetaY);
+        // rotation x
+        matRotX = Matrix_MakeRotationX(fThetaX);
         setactivepage(page); // double buffer method
         setvisualpage(1 - page);
         if (GetAsyncKeyState(0x26)  != 0) // up key held
@@ -274,6 +278,27 @@ public:
             }
         }else{
             c=0;
+        }
+
+        if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0)
+        { // when left click is hold
+            GetCursorPos(&cursorPos);
+            if (leftButtonHold == false)
+            {
+                prevXM = cursorPos.x;
+                prevYM = cursorPos.y;
+                leftButtonHold = true;
+            }
+            differenceX = prevXM - cursorPos.x;
+            differenceY = prevYM - cursorPos.y;
+            fThetaX += differenceY * 0.01; // dragging mouse in y direction give means rotating wrt to x axis and -ve for invertmouseY just like in videogames
+            fThetaY += differenceX * 0.01;
+            prevXM = cursorPos.x;
+            prevYM = cursorPos.y;
+            }
+        else
+        {
+            leftButtonHold = false;
         }
         // if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0)
         // { // when left click is hold
