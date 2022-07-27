@@ -141,6 +141,7 @@ private:
     float fThetaY = 0.0f;
     float zoom = 0.0f;
     int page = 0;
+    int c=0; //for toggle interior and exterior models
     float *pDepthBuffer = nullptr;
     mat4x4 matCameraRot;
     std::chrono::time_point<std::chrono::system_clock> m_tp1, m_tp2;
@@ -262,11 +263,17 @@ public:
         {
             fYaw += 2.0f * elapsedTime;
         }
+        
         if (GetAsyncKeyState(0x20)  != 0) // space key pressed
         {
+            c++;
+            if(c==1){
             mesh tempObj = meshObj;
             meshObj = meshObj2;
             meshObj2 = tempObj; 
+            }
+        }else{
+            c=0;
         }
         // if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0)
         // { // when left click is hold
