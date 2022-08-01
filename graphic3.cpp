@@ -65,9 +65,6 @@ struct mesh
                 {
                     vec2d v;
                     s >> junk >> junk >> v.u >> v.v;
-                    // A little hack for the spyro texture
-                    // v.u = 1.0f - v.u;
-                    // v.v = 1.0f - v.v;
                     texs.push_back(v);
                 }
                 else
@@ -198,9 +195,7 @@ public:
         vCamera.x = 0.0f;
         vCamera.y = 0.0f;
         vCamera.z = 0.0f;
-
-        // without this, nothing will appear on screen at first
-        //matCameraRot = Matrix_MakeRotationY(fYaw);
+        
         // rotation y
         matRotY = Matrix_MakeRotationY(fThetaY);
         // rotation x
@@ -229,16 +224,7 @@ public:
         {
             vCamera.y -= 8.0f * elapsedTime;
         }
-        // if ((GetAsyncKeyState(0x28) & 0x8000) != 0) // down key held
-        // {
-        //     fXaw -= 0.05f;
-
-        // }
-        // if ((GetAsyncKeyState(0x26) & 0x8000) != 0) // up key held
-        // {
-        //     fXaw += 0.05f;
-
-        // }
+        
         if (GetAsyncKeyState(0x41) != 0) // a key held
         {
             vCamera.x += 8.0f * elapsedTime;
@@ -300,39 +286,7 @@ public:
         {
             leftButtonHold = false;
         }
-        // if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0)
-        // { // when left click is hold
-        //     GetCursorPos(&cursorPos);
-        //     if (leftButtonHold == false)
-        //     {
-        //         prevXM = cursorPos.x;
-        //         prevYM = cursorPos.y;
-        //         leftButtonHold = true;
-        //     }
-        //     differenceX = prevXM - cursorPos.x;
-        //     differenceY = prevYM - cursorPos.y;
-        //     fThetaX -= differenceY * 0.01; // dragging mouse in y direction give means rotating wrt to x axis and -ve for invertmouseY just like in videogames
-        //     fThetaY -= differenceX * 0.01;
-        //     prevXM = cursorPos.x;
-        //     prevYM = cursorPos.y;
-
-        //     // rotation y
-        //     matRotY = Matrix_MakeRotationY(fThetaY);
-        //     // rotation x
-        //     matRotX = Matrix_MakeRotationX(fThetaX);
-        // }
-        // else
-        // {
-        //     leftButtonHold = false;
-        // }
-        // if ((GetAsyncKeyState(0x5A) & 0x8000) != 0)
-        // { // z key pressed
-        //     zoom--;
-        // }
-        // else if ((GetAsyncKeyState(0x58) & 0x8000) != 0)
-        // { // x key pressed
-        //     zoom++;
-        // }
+        
 
         cleardevice(); // when clear device is inside the key press loop, then multiple border ficklering occurs, so, cleardevice should be outside so its being cleared every time
         for (int i = 0; i < screenWidth * screenHeight; i++)
@@ -342,11 +296,6 @@ public:
         // draw triangles
 
         vector<triangle> vecTrianglesToRaster;
-
-        // mat4x4 matRotZ, matRotX;
-		// fTheta += 1.0f *  elapsedTime; // Uncomment to spin me right round baby right round
-		// matRotZ = Matrix_MakeRotationZ(fTheta * 0.5f);
-		// matRotX = Matrix_MakeRotationX(fTheta);
 
         // maybe for initial condition
         mat4x4 matTrans;
@@ -359,9 +308,6 @@ public:
         matWorld = Matrix_MultiplyMatrix(matWorld, matTrans); // Transform by translation
         // maybe for initial condition //ends
 
-        // vec3d vLookDir = {0,0,1};
-
-        // vec3d vTarget = Vector_Add(vCamera, vLookDir);
         vec3d vUp = {0, 1, 0};
         vec3d vTarget = {0, 0, 1};
 
@@ -369,10 +315,6 @@ public:
         matCameraRot = Matrix_MakeRotationY(fYaw);
         vLookDir = Matrix_MultiplyVector(matCameraRot, vTarget);
         vTarget = Vector_Add(vCamera, vLookDir);
-
-        // matCameraRot = Matrix_MakeRotationX(fXaw);
-        // vLookDir = Matrix_MultiplyVector(matCameraRot, vTarget);
-        // vTarget = Vector_Add(vCamera, vLookDir);
 
         mat4x4 matCamera = Matrix_PointAt(vCamera, vTarget, vUp);
 
@@ -500,11 +442,7 @@ public:
 
         for (auto &triToRaster : vecTrianglesToRaster)
         {
-            // setfillstyle(SOLID_FILL,RED);
-            // drawTriangle(triProjected.p[0].x, triProjected.p[0].y, triProjected.p[1].x, triProjected.p[1].y, triProjected.p[2].x, triProjected.p[2].y);
-            // float midX = (triProjected.p[0].x+triProjected.p[1].x+triProjected.p[2].x)/3.0f;
-            // float midY = (triProjected.p[0].y+triProjected.p[1].y+triProjected.p[2].y)/3.0f;
-            // floodfill(midX,midY,RED);
+            
             triangle clipped[2];
             list<triangle> listTriangles;
             listTriangles.push_back(triToRaster);
@@ -1167,9 +1105,6 @@ private:
 
     void drawTriangle(float x1, float y1, float x2, float y2, float x3, float y3)
     {
-        // drawLine(x1,y1,x2,y2,WHITE);
-        // drawLine(x2,y2,x3,y3,WHITE);
-        // drawLine(x3,y3,x1,y1,WHITE);
         line(x1, y1, x2, y2); // inbuilt line of graphics.h seems to perform better than custom built
         line(x2, y2, x3, y3);
         line(x3, y3, x1, y1);
