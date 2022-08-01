@@ -12,14 +12,14 @@
 
 using namespace std;
 
-struct vec2d
+struct vec2d // to store texture information of triangles, but here we don't actually apply texture, we use this to compute z buffer
 {
     float u = 0;
     float v = 0;
     float w = 1;
 };
 
-struct vec3d
+struct vec3d // to store triangle vertex information
 {
     float x = 0;
     float y = 0;
@@ -27,7 +27,7 @@ struct vec3d
     float w = 1;
 };
 
-struct triangle
+struct triangle // triangle struct represents a triangle, which contains vertex of triangles as p and vertex of texture as t, whereas col refers to colour of the triangles, which in this project is black or light gray or dark gray
 {
     vec3d p[3];
     vec2d t[3];
@@ -35,11 +35,11 @@ struct triangle
     short col;
 };
 
-struct mesh
+struct mesh // mesh is basically vector of all triangles of an object extracted from an object file.  Exterior of car is a mesh and interior of car is another mesh
 {
     vector<triangle> tris;
 
-    bool LoadFromObjectFile(string sFilename, bool bHasTexture = false)
+    bool LoadFromObjectFile(string sFilename, bool bHasTexture = false) // it is function to read and store triangles from obj file to mesh.
     {
         ifstream f(sFilename);
         if (!f.is_open())
@@ -59,15 +59,15 @@ struct mesh
 
             char junk;
 
-            if (line[0] == 'v')
+            if (line[0] == 'v') // v can be just 'v' or 'vt'. v is vertex of triangle and vt is vertex of texture
             {
-                if (line[1] == 't')
+                if (line[1] == 't') // condition for vt
                 {
                     vec2d v;
                     s >> junk >> junk >> v.u >> v.v;
                     texs.push_back(v);
                 }
-                else
+                else // condition for v only
                 {
                     vec3d v;
                     s >> junk >> v.x >> v.y >> v.z;
@@ -75,16 +75,16 @@ struct mesh
                 }
             }
 
-            if (!bHasTexture)
+            if (!bHasTexture) // is define this bool when we define mesh, here in this project we make it true, though we don't really apply texture, but we calculate zbuffer using it
             {
-                if (line[0] == 'f')
+                if (line[0] == 'f') // f for face. face is set of 3 vertex that define a triangle
                 {
                     int f[3];
                     s >> junk >> f[0] >> f[1] >> f[2];
                     tris.push_back({verts[f[0] - 1], verts[f[1] - 1], verts[f[2] - 1]});
                 }
             }
-            else
+            else // this condition doesn't really come in our project because we keep bHasTexture always true
             {
                 if (line[0] == 'f')
                 {
@@ -113,45 +113,43 @@ struct mesh
     }
 };
 
-struct mat4x4
+struct mat4x4 // 4 dimensional matrix for transformations
 {
     float m[4][4] = {0};
 };
 
-class renderer
+class renderer // this class contains basically everything that is needed for the rendering
 {
 private:
     DWORD screenWidth;
     DWORD screenHeight;
     string objName;
-    mat4x4 matProj, matRotX, matRotY;
-    mesh meshObj;
-    mesh meshObj2;
-    vec3d vLookDir;
-    vec3d vCamera;
-    POINT cursorPos;
-    float fYaw = 0.0f;
-    float fZaw = 0.0f;
-    float fXaw = 0.0f;
-    float fTheta;
+    mat4x4 matProj, matRotX, matRotY; // projection matrix , and rotation matrices
+    mesh meshObj;                     // this mesh is what we render on the screen
+    mesh meshObj2;                    // this mesh is swaped with meshobj when we switch between interior and exterior
+    vec3d vLookDir;                   // unit vector that travels along the direction that we want the camera to point
+    vec3d vCamera;                    // position of camera
+    POINT cursorPos;                  // position of mouse cursor
+    float fYaw = 0.0f;                // for rotation of camera in horizontal direction using left and right arrow keys
+    // float fZaw = 0.0f;
+    // float fXaw = 0.0f;
     float fThetaX = 0.0f; // angle of rotation
     float fThetaY = 0.0f;
-    float zoom = 0.0f;
-    int page = 0;
-    int c=0; //for toggle interior and exterior models
-    float *pDepthBuffer = nullptr;
-    mat4x4 matCameraRot;
-    std::chrono::time_point<std::chrono::system_clock> m_tp1, m_tp2;
+    int page = 0;                                                    // for double buffer implementation
+    int c = 0;                                                       // for toggle interior and exterior models
+    float *pDepthBuffer = nullptr;                                   // z-buffer calculation
+    mat4x4 matCameraRot;                                             // rotation matrix
+    std::chrono::time_point<std::chrono::system_clock> m_tp1, m_tp2; // for elapsed time calculation that results in uniform movement w.r.t time
 
-    float prevXM; // previous x position of mouse
-    float prevYM;
+    float prevXM;      // previous x position of mouse for mouse cursor position detection
+    float prevYM;      // previous y position of mouse
     float differenceX; // difference between current and previous x position of mouse
     float differenceY;
-    bool leftButtonHold = false;
+    bool leftButtonHold = false; // for knowing when left mouse button is left
 
 public:
     // constructor
-    renderer(string objName, string objName2, DWORD screenWidth, DWORD screenHeight, int xOffset, int yOffset)
+    renderer(string objName, string objName2, DWORD screenWidth, DWORD screenHeight, int xOffset, int yOffset) // constructor of class,  runs only once when program is run
     {
         initwindow(screenWidth, screenHeight, "", -3, -3);
         this->objName = objName;
@@ -159,12 +157,12 @@ public:
         this->screenHeight = screenHeight;
 
         // Projection Matrix
-        matProj = Matrix_MakeProjection(90.0f, (float)screenHeight / (float)screenWidth, 0.1f, 1000.0f);
+        matProj = Matrix_MakeProjection(90.0f, (float)screenHeight / (float)screenWidth, 0.1f, 1000.0f); // precalculated value assigned. 90 is angle of vision, 0.1f is near plane distance from camera, 1000.0f is far plane distance from camera
 
-        meshObj.LoadFromObjectFile(objName, true);
-        meshObj2.LoadFromObjectFile(objName2, true);
+        meshObj.LoadFromObjectFile(objName, true);   // exterior of car read and loaded
+        meshObj2.LoadFromObjectFile(objName2, true); // interior of car read and loaded
 
-        pDepthBuffer = new float[screenWidth * screenHeight];
+        pDepthBuffer = new float[screenWidth * screenHeight]; // for z-buffer calculation
         // meshObj.tris = {
 
         // // SOUTH
@@ -192,14 +190,15 @@ public:
         // { 1.0f, 0.0f, 1.0f, 1.0f,    0.0f, 0.0f, 0.0f, 1.0f,    1.0f, 0.0f, 0.0f, 1.0f,		0.0f, 1.0f, 1.0f,		1.0f, 0.0f, 1.0f,		1.0f, 1.0f, 1.0f,},
 
         // };
-        vCamera.x = 0.0f;
+        vCamera.x = 0.0f; // defining intial camera position
         vCamera.y = 0.0f;
         vCamera.z = 0.0f;
-        
+
+        // initialization of rotation matrices
         // rotation y
-        matRotY = Matrix_MakeRotationY(fThetaY);
+        matRotY = Matrix_MakeRotationY(fThetaY); // rotation w.r.t y axis
         // rotation x
-        matRotX = Matrix_MakeRotationX(fThetaX);
+        matRotX = Matrix_MakeRotationX(fThetaX); // rotation w.r.t x axis
         m_tp1 = std::chrono::system_clock::now();
         m_tp2 = std::chrono::system_clock::now();
     }
@@ -209,22 +208,22 @@ public:
         std::chrono::duration<float> fElapsedTime = m_tp2 - m_tp1;
         m_tp1 = m_tp2;
         // std::cout<<elapsedTime.count()<<std::endl;
-        float elapsedTime = fElapsedTime.count();
+        float elapsedTime = fElapsedTime.count(); // time elapsed in each frame
         // rotation y
-        matRotY = Matrix_MakeRotationY(fThetaY);
+        matRotY = Matrix_MakeRotationY(fThetaY); // updating rotation matrices
         // rotation x
         matRotX = Matrix_MakeRotationX(fThetaX);
         setactivepage(page); // double buffer method
         setvisualpage(1 - page);
-        if (GetAsyncKeyState(0x26)  != 0) // up key held
+        if (GetAsyncKeyState(0x26) != 0) // up key held
         {
             vCamera.y += 8.0f * elapsedTime;
         }
-        if (GetAsyncKeyState(0x28)  != 0) // down key held
+        if (GetAsyncKeyState(0x28) != 0) // down key held
         {
             vCamera.y -= 8.0f * elapsedTime;
         }
-        
+
         if (GetAsyncKeyState(0x41) != 0) // a key held
         {
             vCamera.x += 8.0f * elapsedTime;
@@ -240,12 +239,12 @@ public:
         {
             vCamera = Vector_Add(vCamera, vForward);
         }
-        if (GetAsyncKeyState(0x53)  != 0) // s key held
+        if (GetAsyncKeyState(0x53) != 0) // s key held
         {
             vCamera = Vector_Sub(vCamera, vForward);
         }
 
-        if (GetAsyncKeyState(0x25)  != 0) // left key held
+        if (GetAsyncKeyState(0x25) != 0) // left key held
         {
             fYaw -= 2.0f * elapsedTime;
         }
@@ -253,21 +252,24 @@ public:
         {
             fYaw += 2.0f * elapsedTime;
         }
-        
-        if (GetAsyncKeyState(0x20)  != 0) // space key pressed
+
+        if (GetAsyncKeyState(0x20) != 0) // space key pressed
         {
             c++;
-            if(c==1){
-            mesh tempObj = meshObj;
-            meshObj = meshObj2;
-            meshObj2 = tempObj; 
+            if (c == 1)
+            {
+                mesh tempObj = meshObj;
+                meshObj = meshObj2;
+                meshObj2 = tempObj;
             }
-        }else{
-            c=0;
         }
-
+        else
+        {
+            c = 0;
+        }
+        // when left click is hold
         if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0)
-        { // when left click is hold
+        {
             GetCursorPos(&cursorPos);
             if (leftButtonHold == false)
             {
@@ -277,60 +279,59 @@ public:
             }
             differenceX = prevXM - cursorPos.x;
             differenceY = prevYM - cursorPos.y;
-            fThetaX += differenceY * 0.01; // dragging mouse in y direction give means rotating wrt to x axis and -ve for invertmouseY just like in videogames
+            fThetaX += differenceY * 0.01; // dragging mouse in y direction give means rotating wrt to x axis
             fThetaY += differenceX * 0.01;
             prevXM = cursorPos.x;
             prevYM = cursorPos.y;
-            }
+        }
         else
         {
             leftButtonHold = false;
         }
-        
 
-        cleardevice(); // when clear device is inside the key press loop, then multiple border ficklering occurs, so, cleardevice should be outside so its being cleared every time
-        for (int i = 0; i < screenWidth * screenHeight; i++)
+        cleardevice();                                       // clears the screen
+        for (int i = 0; i < screenWidth * screenHeight; i++) // depth buffer stuffs
         {
             pDepthBuffer[i] = 0.0f;
         }
-        // draw triangles
 
-        vector<triangle> vecTrianglesToRaster;
+        // manipulation of triangles started
 
-        // maybe for initial condition
+        vector<triangle> vecTrianglesToRaster; // is used to store projected and clipped triangles after
+
+        // matrix translation
         mat4x4 matTrans;
-        matTrans = Matrix_MakeTranslation(0.0f, 0.0f, 5.0f);
+        matTrans = Matrix_MakeTranslation(0.0f, 0.0f, 5.0f); // translating by 5.0f in z direction , otherwise camera would be inside objection
 
-        mat4x4 matWorld;
-        matWorld = Matrix_MakeIdentity();                     // Form World Matrix
-        matWorld = Matrix_MultiplyMatrix(matRotY, matRotX);   // Transform by rotation
-        //matWorld = Matrix_MultiplyMatrix(matRotZ, matRotX);
+        mat4x4 matWorld;                                    // this transformation matrix translates and rotates everything and gives illusion of camera is moving, even though, the world is actually moving
+        matWorld = Matrix_MakeIdentity();                   // Form World Matrix
+        matWorld = Matrix_MultiplyMatrix(matRotY, matRotX); // Transform by rotation
+        // matWorld = Matrix_MultiplyMatrix(matRotZ, matRotX);
         matWorld = Matrix_MultiplyMatrix(matWorld, matTrans); // Transform by translation
         // maybe for initial condition //ends
 
-        vec3d vUp = {0, 1, 0};
-        vec3d vTarget = {0, 0, 1};
+        vec3d vUp = {0, 1, 0};     // up vector, which is perpendicular to forward vector
+        vec3d vTarget = {0, 0, 1}; // forward vector, initially, is towards z direction
 
-        // matCameraRot = Matrix_Adder(Matrix_MakeRotationY(fYaw), Matrix_MakeRotationX(fXaw));
-        matCameraRot = Matrix_MakeRotationY(fYaw);
-        vLookDir = Matrix_MultiplyVector(matCameraRot, vTarget);
-        vTarget = Vector_Add(vCamera, vLookDir);
+        matCameraRot = Matrix_MakeRotationY(fYaw);               // camera rotation matrix // uses left and right key to update fYaw which rotates the camera
+        vLookDir = Matrix_MultiplyVector(matCameraRot, vTarget); // unit vector points towards the direction we want the camera to point
+        vTarget = Vector_Add(vCamera, vLookDir);                 // vTarget is vector along which we move when we press w
 
-        mat4x4 matCamera = Matrix_PointAt(vCamera, vTarget, vUp);
+        mat4x4 matCamera = Matrix_PointAt(vCamera, vTarget, vUp); // transformation matrix of camera
 
         // make view matrix from camera
-        mat4x4 matView = Matrix_QuickInverse(matCamera);
+        mat4x4 matView = Matrix_QuickInverse(matCamera); // inverse because, we aren't transforming the camera, but instead the whole world
 
-        for (auto tri : meshObj.tris)
+        for (auto tri : meshObj.tris) // going through all the triangles of the object
         {
-            triangle triProjected, triTransformed, triViewed;
-            vec3d normal, line1, line2;
+            triangle triProjected, triTransformed, triViewed; // triTransformed has all the transformed triangles of an object that has been transformed by matWorld matrix      // triviewed has all
+            vec3d normal, line1, line2;                       // line 1 is one edge of a triangle, line2 is another edge of the triangle and normal is normal vector to the surface of the triangle
 
             // world matrix transform
-            triTransformed.p[0] = Matrix_MultiplyVector(matWorld, tri.p[0]);
+            triTransformed.p[0] = Matrix_MultiplyVector(matWorld, tri.p[0]); // for point data // transformed the whole world/object  ( in 3d space )
             triTransformed.p[1] = Matrix_MultiplyVector(matWorld, tri.p[1]);
             triTransformed.p[2] = Matrix_MultiplyVector(matWorld, tri.p[2]);
-            triTransformed.t[0] = tri.t[0];
+            triTransformed.t[0] = tri.t[0]; // for texture data
             triTransformed.t[1] = tri.t[1];
             triTransformed.t[2] = tri.t[2];
 
@@ -347,7 +348,7 @@ public:
             // Get Ray from triangle to camera
             vec3d vCameraRay = Vector_Sub(triTransformed.p[0], vCamera);
 
-            if (Vector_DotProduct(normal, vCameraRay) < 0.0f)
+            if (Vector_DotProduct(normal, vCameraRay) < 0.0f) // partial visible surface detection, only includes those triangles whose normal points towards the camera
             {
                 // Convert world space to view space
                 // Illumination
@@ -357,36 +358,36 @@ public:
                 // How "aligned" are light direction and triangle surface normal?
                 float dp = max(0.1f, Vector_DotProduct(light_direction, normal));
 
-                // Choose console colours as required (much easier with RGB)
+                // Choose console colours as required
                 int c = GetColour(dp);
                 triTransformed.col = c;
 
-                triViewed.p[0] = Matrix_MultiplyVector(matView, triTransformed.p[0]);
+                triViewed.p[0] = Matrix_MultiplyVector(matView, triTransformed.p[0]); // changed co-ordinates(by rotation) of the triangles w.r.t camera manipulation ( in 3d space)
                 triViewed.p[1] = Matrix_MultiplyVector(matView, triTransformed.p[1]);
                 triViewed.p[2] = Matrix_MultiplyVector(matView, triTransformed.p[2]);
 
                 triViewed.col = triTransformed.col;
-                triViewed.t[0] = triTransformed.t[0];
+                triViewed.t[0] = triTransformed.t[0]; // for texture
                 triViewed.t[1] = triTransformed.t[1];
                 triViewed.t[2] = triTransformed.t[2];
 
-                int nClippedTriangles = 0;
+                int nClippedTriangles = 0; // number of triangles formed of 1 triangles when clipped against window
                 triangle clipped[2];
-                nClippedTriangles = Triangle_ClipAgainstPlane({0.0f, 0.0f, 0.1f}, {0.0f, 0.0f, 1.0f}, triViewed, clipped[0], clipped[1]);
+                nClippedTriangles = Triangle_ClipAgainstPlane({0.0f, 0.0f, 0.1f}, {0.0f, 0.0f, 1.0f}, triViewed, clipped[0], clipped[1]); // passing clipped by reference, so changes occur in clipped
 
                 for (int n = 0; n < nClippedTriangles; n++)
                 {
                     // Project triangles from 3D --> 2D
-                    triProjected.p[0] = Matrix_MultiplyVector(matProj, clipped[n].p[0]);
+                    triProjected.p[0] = Matrix_MultiplyVector(matProj, clipped[n].p[0]); // projects from 3d space to 2d space
                     triProjected.p[1] = Matrix_MultiplyVector(matProj, clipped[n].p[1]);
                     triProjected.p[2] = Matrix_MultiplyVector(matProj, clipped[n].p[2]);
                     triProjected.col = clipped[n].col;
 
-                    triProjected.t[0] = clipped[n].t[0];
+                    triProjected.t[0] = clipped[n].t[0]; // clipped triangles
                     triProjected.t[1] = clipped[n].t[1];
                     triProjected.t[2] = clipped[n].t[2];
 
-                    triProjected.t[0].u = triProjected.t[0].u / triProjected.p[0].w;
+                    triProjected.t[0].u = triProjected.t[0].u / triProjected.p[0].w; // texture projection affected by projection of triangles
                     triProjected.t[1].u = triProjected.t[1].u / triProjected.p[1].w;
                     triProjected.t[2].u = triProjected.t[2].u / triProjected.p[2].w;
 
@@ -399,13 +400,12 @@ public:
                     triProjected.t[2].w = 1.0f / triProjected.p[2].w;
 
                     // Scale into view, we moved the normalising into cartesian space
-                    // out of the matrix.vector function from the previous videos, so
-                    // do this manually
+                    // out of the matrix.vector function
                     triProjected.p[0] = Vector_Div(triProjected.p[0], triProjected.p[0].w);
                     triProjected.p[1] = Vector_Div(triProjected.p[1], triProjected.p[1].w);
                     triProjected.p[2] = Vector_Div(triProjected.p[2], triProjected.p[2].w);
 
-                    // X/Y are inverted so put them back
+                    // X/Y are inverted so putting them back
                     triProjected.p[0].x *= -1.0f;
                     triProjected.p[1].x *= -1.0f;
                     triProjected.p[2].x *= -1.0f;
@@ -413,7 +413,7 @@ public:
                     triProjected.p[1].y *= -1.0f;
                     triProjected.p[2].y *= -1.0f;
 
-                    vec3d vOffsetView = {1, 1, 0};
+                    vec3d vOffsetView = {1, 1, 0}; // since we export file from blender and blender co ordinate system has negative values, but our screen only has positive scales, from (0,0) to (1920, 1080), so, we offset in x and y to make it appear on screen, otherwise, negative part wouldn't be visible
                     triProjected.p[0] = Vector_Add(triProjected.p[0], vOffsetView);
                     triProjected.p[1] = Vector_Add(triProjected.p[1], vOffsetView);
                     triProjected.p[2] = Vector_Add(triProjected.p[2], vOffsetView);
@@ -421,8 +421,8 @@ public:
                     // scaling it wrt to screen size         //we scale half the total length to make the object appear on center
                     triProjected.p[0].x *= 0.5f * (float)screenWidth; // scaling in x direction is bigger because width is bigger than height, but it's cancelled out by aspect ratio( h/w), so at the end, it is just perfect
                     triProjected.p[0].y *= 0.5f * (float)screenHeight;
-                    triProjected.p[1].x *= 0.5f * (float)screenWidth;  //
-                    triProjected.p[1].y *= 0.5f * (float)screenHeight; //
+                    triProjected.p[1].x *= 0.5f * (float)screenWidth;
+                    triProjected.p[1].y *= 0.5f * (float)screenHeight;
                     triProjected.p[2].x *= 0.5f * (float)screenWidth;
                     triProjected.p[2].y *= 0.5f * (float)screenHeight;
 
@@ -440,9 +440,9 @@ public:
         //         float z2 = (t2.p[0].z +t2.p[1].z +t2.p[2].z)/3.0f;
         //         return z1>z2; });
 
-        for (auto &triToRaster : vecTrianglesToRaster)
+        for (auto &triToRaster : vecTrianglesToRaster) // triangles to raster
         {
-            
+
             triangle clipped[2];
             list<triangle> listTriangles;
             listTriangles.push_back(triToRaster);
@@ -489,9 +489,9 @@ public:
             }
 
             // Draw the transformed, viewed, clipped, projected, sorted, clipped triangles
-            for (auto &t : listTriangles)
+            for (auto &t : listTriangles) // triangles to be drawn
             {
-                //drawTriangle(t.p[0].x, t.p[0].y, t.p[1].x, t.p[1].y, t.p[2].x, t.p[2].y);
+                // drawTriangle(t.p[0].x, t.p[0].y, t.p[1].x, t.p[1].y, t.p[2].x, t.p[2].y);
                 TexturedTriangle(t.p[0].x, t.p[0].y, t.t[0].u, t.t[0].v, t.t[0].w,
                                  t.p[1].x, t.p[1].y, t.t[1].u, t.t[1].v, t.t[1].w,
                                  t.p[2].x, t.p[2].y, t.t[2].u, t.t[2].v, t.t[2].w, t.col);
@@ -720,7 +720,7 @@ private:
         matrix.m[3][3] = 1.0f;
         return matrix;
     }
-    vec3d Vector_IntersectPlane(vec3d &plane_p, vec3d &plane_n, vec3d &lineStart, vec3d &lineEnd, float &t)
+    vec3d Vector_IntersectPlane(vec3d &plane_p, vec3d &plane_n, vec3d &lineStart, vec3d &lineEnd, float &t) // returns the point where a line interesects a plane
     {
         plane_n = Vector_Normalise(plane_n);
         float plane_d = -Vector_DotProduct(plane_n, plane_p);
@@ -732,141 +732,155 @@ private:
         return Vector_Add(lineStart, lineToIntersect);
     }
 
-    int Triangle_ClipAgainstPlane(vec3d plane_p, vec3d plane_n, triangle &in_tri, triangle &out_tri1, triangle &out_tri2)
-	{
-		// Make sure plane normal is indeed normal
-		plane_n = Vector_Normalise(plane_n);
+    int Triangle_ClipAgainstPlane(vec3d plane_p, vec3d plane_n, triangle &in_tri, triangle &out_tri1, triangle &out_tri2)   // returns number of triangle that has been clipped from a single triangle , as well as return by reference the actual clipped triangles
+    {
+        // Make sure plane normal is indeed normal
+        plane_n = Vector_Normalise(plane_n);
 
-		// Return signed shortest distance from point to plane, plane normal must be normalised
-		auto dist = [&](vec3d &p)
-		{
-			vec3d n = Vector_Normalise(p);
-			return (plane_n.x * p.x + plane_n.y * p.y + plane_n.z * p.z - Vector_DotProduct(plane_n, plane_p));
-		};
+        // Return signed shortest distance from point to plane, plane normal must be normalised
+        auto dist = [&](vec3d &p)
+        {
+            vec3d n = Vector_Normalise(p);
+            return (plane_n.x * p.x + plane_n.y * p.y + plane_n.z * p.z - Vector_DotProduct(plane_n, plane_p));
+        };
 
-		// Create two temporary storage arrays to classify points either side of plane
-		// If distance sign is positive, point lies on "inside" of plane
-		vec3d* inside_points[3];  int nInsidePointCount = 0;
-		vec3d* outside_points[3]; int nOutsidePointCount = 0;
-		vec2d* inside_tex[3]; int nInsideTexCount = 0;
-		vec2d* outside_tex[3]; int nOutsideTexCount = 0;
+        // Create two temporary storage arrays to classify points either side of plane
+        // If distance sign is positive, point lies on "inside" of plane
+        vec3d *inside_points[3];
+        int nInsidePointCount = 0;
+        vec3d *outside_points[3];
+        int nOutsidePointCount = 0;
+        vec2d *inside_tex[3];
+        int nInsideTexCount = 0;
+        vec2d *outside_tex[3];
+        int nOutsideTexCount = 0;
 
+        // Get signed distance of each point in triangle to plane
+        float d0 = dist(in_tri.p[0]);
+        float d1 = dist(in_tri.p[1]);
+        float d2 = dist(in_tri.p[2]);
 
-		// Get signed distance of each point in triangle to plane
-		float d0 = dist(in_tri.p[0]);
-		float d1 = dist(in_tri.p[1]);
-		float d2 = dist(in_tri.p[2]);
+        if (d0 >= 0)
+        {
+            inside_points[nInsidePointCount++] = &in_tri.p[0];
+            inside_tex[nInsideTexCount++] = &in_tri.t[0];
+        }
+        else
+        {
+            outside_points[nOutsidePointCount++] = &in_tri.p[0];
+            outside_tex[nOutsideTexCount++] = &in_tri.t[0];
+        }
+        if (d1 >= 0)
+        {
+            inside_points[nInsidePointCount++] = &in_tri.p[1];
+            inside_tex[nInsideTexCount++] = &in_tri.t[1];
+        }
+        else
+        {
+            outside_points[nOutsidePointCount++] = &in_tri.p[1];
+            outside_tex[nOutsideTexCount++] = &in_tri.t[1];
+        }
+        if (d2 >= 0)
+        {
+            inside_points[nInsidePointCount++] = &in_tri.p[2];
+            inside_tex[nInsideTexCount++] = &in_tri.t[2];
+        }
+        else
+        {
+            outside_points[nOutsidePointCount++] = &in_tri.p[2];
+            outside_tex[nOutsideTexCount++] = &in_tri.t[2];
+        }
 
-		if (d0 >= 0) { inside_points[nInsidePointCount++] = &in_tri.p[0]; inside_tex[nInsideTexCount++] = &in_tri.t[0]; }
-		else {
-			outside_points[nOutsidePointCount++] = &in_tri.p[0]; outside_tex[nOutsideTexCount++] = &in_tri.t[0];
-		}
-		if (d1 >= 0) {
-			inside_points[nInsidePointCount++] = &in_tri.p[1]; inside_tex[nInsideTexCount++] = &in_tri.t[1];
-		}
-		else {
-			outside_points[nOutsidePointCount++] = &in_tri.p[1];  outside_tex[nOutsideTexCount++] = &in_tri.t[1];
-		}
-		if (d2 >= 0) {
-			inside_points[nInsidePointCount++] = &in_tri.p[2]; inside_tex[nInsideTexCount++] = &in_tri.t[2];
-		}
-		else {
-			outside_points[nOutsidePointCount++] = &in_tri.p[2];  outside_tex[nOutsideTexCount++] = &in_tri.t[2];
-		}
+        // Now classify triangle points, and break the input triangle into
+        // smaller output triangles if required. There are four possible
+        // outcomes...
 
-		// Now classify triangle points, and break the input triangle into 
-		// smaller output triangles if required. There are four possible
-		// outcomes...
+        if (nInsidePointCount == 0)
+        {
+            // All points lie on the outside of plane, so clip whole triangle
+            // It ceases to exist
 
-		if (nInsidePointCount == 0)
-		{
-			// All points lie on the outside of plane, so clip whole triangle
-			// It ceases to exist
+            return 0; // No returned triangles are valid
+        }
 
-			return 0; // No returned triangles are valid
-		}
+        if (nInsidePointCount == 3)
+        {
+            // All points lie on the inside of plane, so do nothing
+            // and allow the triangle to simply pass through
+            out_tri1 = in_tri;
 
-		if (nInsidePointCount == 3)
-		{
-			// All points lie on the inside of plane, so do nothing
-			// and allow the triangle to simply pass through
-			out_tri1 = in_tri;
+            return 1; // Just the one returned original triangle is valid
+        }
 
-			return 1; // Just the one returned original triangle is valid
-		}
+        if (nInsidePointCount == 1 && nOutsidePointCount == 2)
+        {
+            // Triangle should be clipped. As two points lie outside
+            // the plane, the triangle simply becomes a smaller triangle
 
-		if (nInsidePointCount == 1 && nOutsidePointCount == 2)
-		{
-			// Triangle should be clipped. As two points lie outside
-			// the plane, the triangle simply becomes a smaller triangle
+            // Copy appearance info to new triangle
+            out_tri1.col = in_tri.col;
 
-			// Copy appearance info to new triangle
-			out_tri1.col =  in_tri.col;
-			
+            // The inside point is valid, so keep that...
+            out_tri1.p[0] = *inside_points[0];
+            out_tri1.t[0] = *inside_tex[0];
 
-			// The inside point is valid, so keep that...
-			out_tri1.p[0] = *inside_points[0];
-			out_tri1.t[0] = *inside_tex[0];
+            // but the two new points are at the locations where the
+            // original sides of the triangle (lines) intersect with the plane
+            float t;
+            out_tri1.p[1] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[0], *outside_points[0], t);
+            out_tri1.t[1].u = t * (outside_tex[0]->u - inside_tex[0]->u) + inside_tex[0]->u;
+            out_tri1.t[1].v = t * (outside_tex[0]->v - inside_tex[0]->v) + inside_tex[0]->v;
+            out_tri1.t[1].w = t * (outside_tex[0]->w - inside_tex[0]->w) + inside_tex[0]->w;
 
-			// but the two new points are at the locations where the 
-			// original sides of the triangle (lines) intersect with the plane
-			float t;
-			out_tri1.p[1] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[0], *outside_points[0], t);
-			out_tri1.t[1].u = t * (outside_tex[0]->u - inside_tex[0]->u) + inside_tex[0]->u;
-			out_tri1.t[1].v = t * (outside_tex[0]->v - inside_tex[0]->v) + inside_tex[0]->v;
-			out_tri1.t[1].w = t * (outside_tex[0]->w - inside_tex[0]->w) + inside_tex[0]->w;
+            out_tri1.p[2] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[0], *outside_points[1], t);
+            out_tri1.t[2].u = t * (outside_tex[1]->u - inside_tex[0]->u) + inside_tex[0]->u;
+            out_tri1.t[2].v = t * (outside_tex[1]->v - inside_tex[0]->v) + inside_tex[0]->v;
+            out_tri1.t[2].w = t * (outside_tex[1]->w - inside_tex[0]->w) + inside_tex[0]->w;
 
-			out_tri1.p[2] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[0], *outside_points[1], t);
-			out_tri1.t[2].u = t * (outside_tex[1]->u - inside_tex[0]->u) + inside_tex[0]->u;
-			out_tri1.t[2].v = t * (outside_tex[1]->v - inside_tex[0]->v) + inside_tex[0]->v;
-			out_tri1.t[2].w = t * (outside_tex[1]->w - inside_tex[0]->w) + inside_tex[0]->w;
+            return 1; // Return the newly formed single triangle
+        }
 
-			return 1; // Return the newly formed single triangle
-		}
+        if (nInsidePointCount == 2 && nOutsidePointCount == 1)
+        {
+            // Triangle should be clipped. As two points lie inside the plane,
+            // the clipped triangle becomes a "quad". Fortunately, we can
+            // represent a quad with two new triangles
 
-		if (nInsidePointCount == 2 && nOutsidePointCount == 1)
-		{
-			// Triangle should be clipped. As two points lie inside the plane,
-			// the clipped triangle becomes a "quad". Fortunately, we can
-			// represent a quad with two new triangles
+            // Copy appearance info to new triangles
+            out_tri1.col = in_tri.col;
 
-			// Copy appearance info to new triangles
-			out_tri1.col =  in_tri.col;
-			
+            out_tri2.col = in_tri.col;
 
-			out_tri2.col =  in_tri.col;
-			
+            // The first triangle consists of the two inside points and a new
+            // point determined by the location where one side of the triangle
+            // intersects with the plane
+            out_tri1.p[0] = *inside_points[0];
+            out_tri1.p[1] = *inside_points[1];
+            out_tri1.t[0] = *inside_tex[0];
+            out_tri1.t[1] = *inside_tex[1];
 
-			// The first triangle consists of the two inside points and a new
-			// point determined by the location where one side of the triangle
-			// intersects with the plane
-			out_tri1.p[0] = *inside_points[0];
-			out_tri1.p[1] = *inside_points[1];
-			out_tri1.t[0] = *inside_tex[0];
-			out_tri1.t[1] = *inside_tex[1];
+            float t;
+            out_tri1.p[2] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[0], *outside_points[0], t);
+            out_tri1.t[2].u = t * (outside_tex[0]->u - inside_tex[0]->u) + inside_tex[0]->u;
+            out_tri1.t[2].v = t * (outside_tex[0]->v - inside_tex[0]->v) + inside_tex[0]->v;
+            out_tri1.t[2].w = t * (outside_tex[0]->w - inside_tex[0]->w) + inside_tex[0]->w;
 
-			float t;
-			out_tri1.p[2] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[0], *outside_points[0], t);
-			out_tri1.t[2].u = t * (outside_tex[0]->u - inside_tex[0]->u) + inside_tex[0]->u;
-			out_tri1.t[2].v = t * (outside_tex[0]->v - inside_tex[0]->v) + inside_tex[0]->v;
-			out_tri1.t[2].w = t * (outside_tex[0]->w - inside_tex[0]->w) + inside_tex[0]->w;
+            // The second triangle is composed of one of he inside points, a
+            // new point determined by the intersection of the other side of the
+            // triangle and the plane, and the newly created point above
+            out_tri2.p[0] = *inside_points[1];
+            out_tri2.t[0] = *inside_tex[1];
+            out_tri2.p[1] = out_tri1.p[2];
+            out_tri2.t[1] = out_tri1.t[2];
+            out_tri2.p[2] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[1], *outside_points[0], t);
+            out_tri2.t[2].u = t * (outside_tex[0]->u - inside_tex[1]->u) + inside_tex[1]->u;
+            out_tri2.t[2].v = t * (outside_tex[0]->v - inside_tex[1]->v) + inside_tex[1]->v;
+            out_tri2.t[2].w = t * (outside_tex[0]->w - inside_tex[1]->w) + inside_tex[1]->w;
+            return 2; // Return two newly formed triangles which form a quad
+        }
+    }
 
-			// The second triangle is composed of one of he inside points, a
-			// new point determined by the intersection of the other side of the 
-			// triangle and the plane, and the newly created point above
-			out_tri2.p[0] = *inside_points[1];
-			out_tri2.t[0] = *inside_tex[1];
-			out_tri2.p[1] = out_tri1.p[2];
-			out_tri2.t[1] = out_tri1.t[2];
-			out_tri2.p[2] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[1], *outside_points[0], t);
-			out_tri2.t[2].u = t * (outside_tex[0]->u - inside_tex[1]->u) + inside_tex[1]->u;
-			out_tri2.t[2].v = t * (outside_tex[0]->v - inside_tex[1]->v) + inside_tex[1]->v;
-			out_tri2.t[2].w = t * (outside_tex[0]->w - inside_tex[1]->w) + inside_tex[1]->w;
-			return 2; // Return two newly formed triangles which form a quad
-		}
-	}
-
-    int GetColour(float lum)
+    int GetColour(float lum)        //get color of triangle considering the illumnation configuration( angle at which light incidents the surface of triangle)
     {
         int bg_col;
 
@@ -922,7 +936,7 @@ private:
         return bg_col;
     }
 
-    void TexturedTriangle(int x1, int y1, float u1, float v1, float w1,
+    void TexturedTriangle(int x1, int y1, float u1, float v1, float w1,     // function of fill a triangle with a corresponding color
                           int x2, int y2, float u2, float v2, float w2,
                           int x3, int y3, float u3, float v3, float w3,
                           short col)
@@ -1102,7 +1116,7 @@ private:
             }
         }
     }
-
+    // used to make wireframe model, but we aren't gonna do it 
     void drawTriangle(float x1, float y1, float x2, float y2, float x3, float y3)
     {
         line(x1, y1, x2, y2); // inbuilt line of graphics.h seems to perform better than custom built
@@ -1115,7 +1129,7 @@ int main()
 {
     DWORD screenWidth = GetSystemMetrics(SM_CXSCREEN);
     DWORD screenHeight = GetSystemMetrics(SM_CYSCREEN);
-    renderer car("exteriorCar.obj","interiorCar.obj", screenWidth, screenHeight, -3, -3);
+    renderer car("exteriorCar.obj", "interiorCar.obj", screenWidth, screenHeight, -3, -3);  
 
     while (1)
     {
