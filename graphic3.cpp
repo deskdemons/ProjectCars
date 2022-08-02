@@ -3,7 +3,6 @@
 #include <windows.h>
 #include <iostream>
 #include <fstream>
-#include <algorithm>
 #include <strstream>
 #include <list>
 #include <string>
@@ -151,7 +150,7 @@ public:
     // constructor
     renderer(string objName, string objName2, DWORD screenWidth, DWORD screenHeight, int xOffset, int yOffset) // constructor of class,  runs only once when program is run
     {
-        initwindow(screenWidth, screenHeight, "", -3, -3);
+        initwindow(screenWidth, screenHeight, "", xOffset, yOffset);
         this->objName = objName;
         this->screenWidth = screenWidth;
         this->screenHeight = screenHeight;
@@ -461,8 +460,7 @@ public:
                     // Clip it against a plane. We only need to test each
                     // subsequent plane, against subsequent new triangles
                     // as all triangles after a plane clip are guaranteed
-                    // to lie on the inside of the plane. I like how this
-                    // comment is almost completely and utterly justified
+                    // to lie on the inside of the plane.
                     switch (p)
                     {
                     case 0:

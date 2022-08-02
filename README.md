@@ -13,3 +13,7 @@ rightArrow - rotate camera left
 
 for mouse control - rotation of object itself:
 hold left mouse button and drag cursor for movement
+
+for rendering - constant shading algorithm
+for visible surface detection - depth-buffer method
+illuminaiton - distributed light algo( parallel ray)

@@ -22,7 +22,8 @@
                 "-luuid",
                 "-loleaut32",
                 "-lole32"
-            ]
+            ],
+            "forcedInclude": []
         }
     ],
     "version": 4
